@@ -124,9 +124,9 @@ pre{background:#0d0f14;padding:10px;border-radius:6px;font-size:.75rem;overflow-
   <div id="shadow-host" style="border:1px dashed var(--border);border-radius:4px;padding:10px"></div>
 </div>
 
-<script src="../../html2canvas.min.js"></script>
-<script type="module">
-import { OmniDebugLink } from '../../omnidebuglink.js';
+<!-- 用户引入代码:与官网文档一致,单文件,html2canvas 已打进包 -->
+<script src="https://cdn.jsdelivr.net/gh/omnidebuglink/omnidebuglink_web@v0.1.0/dist/omnidebuglink.min.js"></script>
+<script>
 
 const TOKEN = 'odl-dev-7e35c4bf275d4e3e55b844117dda7dfd9e0cde43bd600513cd32226ed684ee83';
 const URL   = `wss://api.omnidebuglink.dev/ws?token=${TOKEN}`;
