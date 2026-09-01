@@ -14,7 +14,7 @@ import { registerUi }     from './tasks-ui.js';
 import { registerInput }  from './tasks-input.js';
 import { registerDevice } from './tasks-device.js';
 
-export const LIB_VERSION = '0.1.0';
+export const LIB_VERSION = '0.1.1';
 
 export class OmniDebugLink {
   static actionsEnabled = true;

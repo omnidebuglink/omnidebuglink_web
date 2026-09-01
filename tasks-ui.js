@@ -23,6 +23,15 @@ function traverseNode(el, depth = 0) {
     if (val) node.attrs[attr] = val;
   }
 
+  // 表单控件当前值:property 与 attribute 是两回事,必须报 property 才反映真实输入状态
+  if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') {
+    const v = el.value;
+    if (typeof v === 'string' && v !== '') node.attrs.value = v.slice(0, 100);
+    if (el.tagName === 'INPUT' && (el.type === 'checkbox' || el.type === 'radio') && el.checked) {
+      node.attrs.checked = 'true';
+    }
+  }
+
   if (el.nodeType !== 3 && el.textContent) {
     const t = el.textContent.trim();
     if (t) node.text = t.length > 100 ? t.slice(0, 100) + '…' : t;
@@ -97,12 +106,18 @@ export function registerUi(registry, ensureActions) {
 
     const results = [];
     for (const el of matches) {
-      if (text && !(el.textContent ?? '').toLowerCase().includes(text.toLowerCase())) continue;
+      // 文本匹配同时看 textContent 与表单控件当前 value(输入结果不是文本节点,textContent 看不见)
+      const value = typeof el.value === 'string' && el.value !== '' ? el.value : null;
+      if (text) {
+        const hay = `${el.textContent ?? ''} ${value ?? ''}`.toLowerCase();
+        if (!hay.includes(text.toLowerCase())) continue;
+      }
       const rect = el.getBoundingClientRect?.();
       results.push({
         path: el.id || el.className?.split?.(' ')?.[0] || el.tagName.toLowerCase(),
         tag: el.tagName.toLowerCase(),
         text: el.textContent?.trim()?.slice(0, 80),
+        ...(value ? { value: value.slice(0, 80) } : {}),
         center: rect
           ? { x: (rect.left + rect.width / 2) / window.innerWidth,
               y: (rect.top + rect.height / 2) / window.innerHeight }
@@ -141,6 +156,8 @@ export function registerUi(registry, ensureActions) {
       id: el.id,
       className: el.className,
       text: el.textContent?.trim()?.slice(0, 200),
+      value: typeof el.value === 'string' ? el.value.slice(0, 200) : undefined,
+      checked: el.checked === true ? true : undefined,
       rect: rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null,
       visible: rect && rect.width > 0 && rect.height > 0 &&
                cs.visibility !== 'hidden' && cs.display !== 'none',

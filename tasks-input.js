@@ -6,6 +6,19 @@ function ensureActions(actionsEnabled) {
   if (!actionsEnabled) throw new Error('write actions disabled (actionsEnabled = false)');
 }
 
+// 合成 PointerEvent/KeyboardEvent 是 untrusted 的,浏览器不会因此执行原生滚动、
+// 滑块拖拽、光标移动——需要在 task 里自己做等效补偿。
+function findScrollableAncestor(el) {
+  let n = el?.parentElement;
+  while (n && n !== document.body) {
+    const s = getComputedStyle(n);
+    if (/(auto|scroll|overlay)/.test(`${s.overflow} ${s.overflowY}`) && n.scrollHeight > n.clientHeight) return n;
+    n = n.parentElement;
+  }
+  const de = document.scrollingElement;
+  return de && de.scrollHeight > de.clientHeight ? de : null;
+}
+
 export function registerInput(registry, ensureActions) {
   registry.register('swipe', async (p) => {
     ensureActions();
@@ -18,9 +31,20 @@ export function registerInput(registry, ensureActions) {
     const el = document.elementFromPoint(startX, startY);
     if (!el) return { swiped: false, error: 'start point not on any element' };
 
-    // Pointer events for touch-like swipe
+    // 原生行为补偿:滑块按 x 坐标换算 value;其他元素把位移同步到最近可滚祖先(方向取触摸语义)
+    const isRange  = el.tagName === 'INPUT' && el.type === 'range';
+    const scroller = isRange ? null : findScrollableAncestor(el);
+    const rangeStep = (cx) => {
+      const r = el.getBoundingClientRect();
+      const min = parseFloat(el.min || '0'), max = parseFloat(el.max || '100');
+      const t = Math.min(1, Math.max(0, (cx - r.left) / (r.width || 1)));
+      el.value = String(Math.round(min + t * (max - min)));
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+
     const steps = 20;
     const stepTime = durationMs / steps;
+    let lastX = startX, lastY = startY;
 
     el.dispatchEvent(new PointerEvent('pointerdown', {
       bubbles: true, cancelable: true, view: window,
@@ -36,9 +60,11 @@ export function registerInput(registry, ensureActions) {
         bubbles: true, cancelable: true, view: window,
         pointerId: 1, pointerType: 'touch',
         clientX: cx, clientY: cy,
-        deltaX: cx - (i === 1 ? startX : Math.round(startX + (endX - startX) * (i - 1) / steps)),
-        deltaY: cy - (i === 1 ? startY : Math.round(startY + (endY - startY) * (i - 1) / steps)),
+        deltaX: cx - lastX, deltaY: cy - lastY,
       }));
+      if (isRange) rangeStep(cx);
+      else if (scroller) scroller.scrollBy(lastX - cx, lastY - cy);
+      lastX = cx; lastY = cy;
       await new Promise(r => setTimeout(r, stepTime));
     }
 
@@ -47,10 +73,15 @@ export function registerInput(registry, ensureActions) {
       pointerId: 1, pointerType: 'touch',
       clientX: endX, clientY: endY,
     }));
+    if (isRange) el.dispatchEvent(new Event('change', { bubbles: true }));
 
-    return { swiped: true, startX, startY, endX, endY };
+    const after = isRange
+      ? { sliderValue: el.value }
+      : (scroller ? { scrollTop: Math.round(scroller.scrollTop) } : {});
+    return { swiped: true, startX, startY, endX, endY, ...after };
   },
-    'Swipes from (x1,y1) to (x2,y2) over durationMs ms using PointerEvents. Coordinates are 0-1 normalized, origin top-left.',
+    'Swipes from (x1,y1) to (x2,y2) over durationMs (0-1 normalized, top-left). ' +
+    'PointerEvents + native compensation: scrolls nearest scrollable ancestor, drags range sliders by x position.',
     JSON.stringify({
       type: 'object',
       properties: {
@@ -103,17 +134,26 @@ export function registerInput(registry, ensureActions) {
       return { inputted: false, error: 'element not editable' };
     }
     el.focus();
-    // Set value and fire events
-    Object.defineProperty(el, 'value', { writable: true });
-    el.value = text;
+    if (el.isContentEditable) {
+      el.textContent = text;
+    } else {
+      // 必须用原型上的原生 setter 直写:在实例上定义 own value(如 defineProperty)
+      // 会遮蔽原型 setter,浏览器内部值不更新,界面仍显示占位符。
+      const proto = el.tagName === 'TEXTAREA'
+        ? window.HTMLTextAreaElement?.prototype
+        : window.HTMLInputElement?.prototype;
+      const setter = proto && Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+      if (setter) setter.call(el, text);
+      else el.value = text;
+      // React 受控组件:tracker 记着旧值,不重置则 onChange 可能不触发
+      if (el._valueTracker) el._valueTracker.setValue('');
+    }
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
-    // React/ Vue often need these too
-    el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-    el.dispatchEvent(new KeyboardEvent('keyup',   { key: 'Enter', bubbles: true }));
-    return { inputted: true, length: text.length };
+    const applied = el.isContentEditable ? el.textContent : el.value;
+    return { inputted: true, length: applied?.length ?? 0, value: String(applied ?? '') };
   },
-    'Types text into an input/textarea or contenteditable element. Fires input/change/keydown/keyup events.',
+    'Types text into an input/textarea or contenteditable element. Sets native value and fires input/change; returns applied value.',
     JSON.stringify({
       type: 'object',
       properties: {
@@ -138,9 +178,23 @@ export function registerInput(registry, ensureActions) {
     el?.dispatchEvent(new KeyboardEvent('keydown', { key: mapped, bubbles: true }));
     el?.dispatchEvent(new KeyboardEvent('keypress', { key: mapped, bubbles: true }));
     el?.dispatchEvent(new KeyboardEvent('keyup',   { key: mapped, bubbles: true }));
-    return { sent: true, key: mapped };
+    // 合成键盘不触发原生滚动;焦点不在表单控件上时,滚动键做等效翻页/滚屏
+    const ae = document.activeElement;
+    const inForm = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' ||
+      ae.tagName === 'SELECT' || ae.isContentEditable);
+    if (!inForm) {
+      const de = document.scrollingElement || document.documentElement;
+      const k = key?.toLowerCase();
+      if (k === 'pagedown')      de.scrollBy(0, window.innerHeight * 0.9);
+      else if (k === 'pageup')   de.scrollBy(0, -window.innerHeight * 0.9);
+      else if (k === 'arrowdown') de.scrollBy(0, 80);
+      else if (k === 'arrowup')   de.scrollBy(0, -80);
+      else if (k === 'home')      de.scrollTo(0, 0);
+      else if (k === 'end')       de.scrollTo(0, de.scrollHeight);
+    }
+    return { sent: true, key: mapped, scrollY: Math.round(window.scrollY) };
   },
-    'Sends a keyboard event (keydown/keypress/keyup) to the currently focused element.',
+    'Sends a keyboard event (keydown/keypress/keyup) to the focused element; scroll keys also scroll the page.',
     JSON.stringify({
       type: 'object',
       properties: {
