@@ -2,7 +2,7 @@
  * Built-in basic tasks: echo, ping, get_stats.
  */
 
-const LIB_VERSION = '0.1.0';
+import { LIB_VERSION } from './version.js';
 
 export function registerBasics(registry, actionsEnabled, logBuffer) {
   registry.register('echo', (p) => ({ echo: p.text ?? 'pong' }),

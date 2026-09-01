@@ -11,7 +11,7 @@ import { createHash } from 'node:crypto';
 
 const pkg = JSON.parse(await readFile(new URL('./package.json', import.meta.url), 'utf8'));
 
-const src = await readFile(new URL('./omnidebuglink.js', import.meta.url), 'utf8');
+const src = await readFile(new URL('./version.js', import.meta.url), 'utf8');
 const m = src.match(/LIB_VERSION\s*=\s*'([^']+)'/);
 if (!m || m[1] !== pkg.version) {
   console.error(`版本不一致:package.json=${pkg.version},omnidebuglink.js LIB_VERSION=${m ? m[1] : '?'}`);
