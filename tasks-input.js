@@ -52,20 +52,30 @@ export function registerInput(registry, ensureActions) {
       clientX: startX, clientY: startY,
     }));
 
-    for (let i = 1; i <= steps; i++) {
-      const t = i / steps;
-      const cx = Math.round(startX + (endX - startX) * t);
-      const cy = Math.round(startY + (endY - startY) * t);
-      el.dispatchEvent(new PointerEvent('pointermove', {
-        bubbles: true, cancelable: true, view: window,
-        pointerId: 1, pointerType: 'touch',
-        clientX: cx, clientY: cy,
-        deltaX: cx - lastX, deltaY: cy - lastY,
-      }));
-      if (isRange) rangeStep(cx);
-      else if (scroller) scroller.scrollBy(lastX - cx, lastY - cy);
-      lastX = cx; lastY = cy;
-      await new Promise(r => setTimeout(r, stepTime));
+    // 时间戳驱动 + 追帧:后台 tab 的 setTimeout 被钳到 ~1 次/分钟,固定间隔循环会拖成分钟级
+    // "卡死"(对远程调试是常态——用户盯着 AI 工具,页面在后台)。醒来按 performance.now()
+    // 一次性补齐欠的步数,总时长 ≈ durationMs + 至多一个节流周期。
+    const t0 = performance.now();
+    let i = 1;
+    while (i <= steps) {
+      const due = Math.min(steps, Math.floor((performance.now() - t0) / stepTime));
+      while (i <= due) {
+        const t = i / steps;
+        const cx = Math.round(startX + (endX - startX) * t);
+        const cy = Math.round(startY + (endY - startY) * t);
+        el.dispatchEvent(new PointerEvent('pointermove', {
+          bubbles: true, cancelable: true, view: window,
+          pointerId: 1, pointerType: 'touch',
+          clientX: cx, clientY: cy,
+          deltaX: cx - lastX, deltaY: cy - lastY,
+        }));
+        if (isRange) rangeStep(cx);
+        else if (scroller) scroller.scrollBy(lastX - cx, lastY - cy);
+        lastX = cx; lastY = cy;
+        i++;
+      }
+      if (i > steps) break;
+      await new Promise(r => setTimeout(r, Math.max(4, i * stepTime - (performance.now() - t0))));
     }
 
     el.dispatchEvent(new PointerEvent('pointerup', {
@@ -178,15 +188,16 @@ export function registerInput(registry, ensureActions) {
     el?.dispatchEvent(new KeyboardEvent('keydown', { key: mapped, bubbles: true }));
     el?.dispatchEvent(new KeyboardEvent('keypress', { key: mapped, bubbles: true }));
     el?.dispatchEvent(new KeyboardEvent('keyup',   { key: mapped, bubbles: true }));
-    // 合成键盘不触发原生滚动;焦点不在表单控件上时,滚动键做等效翻页/滚屏
+    // 合成键盘不触发原生滚动,滚动键做等效补偿;方向键在表单内不代劳(别劫持光标移动),
+    // PageUp/PageDown/Home/End 即使焦点在输入框也照补(与 Chrome 原生行为一致:单行输入框内这些键滚页面)
     const ae = document.activeElement;
     const inForm = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' ||
       ae.tagName === 'SELECT' || ae.isContentEditable);
-    if (!inForm) {
-      const de = document.scrollingElement || document.documentElement;
-      const k = key?.toLowerCase();
-      if (k === 'pagedown')      de.scrollBy(0, window.innerHeight * 0.9);
-      else if (k === 'pageup')   de.scrollBy(0, -window.innerHeight * 0.9);
+    const de = document.scrollingElement || document.documentElement;
+    const k = key?.toLowerCase();
+    if (!(inForm && ['arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k))) {
+      if (k === 'pagedown')       de.scrollBy(0, window.innerHeight * 0.9);
+      else if (k === 'pageup')    de.scrollBy(0, -window.innerHeight * 0.9);
       else if (k === 'arrowdown') de.scrollBy(0, 80);
       else if (k === 'arrowup')   de.scrollBy(0, -80);
       else if (k === 'home')      de.scrollTo(0, 0);
