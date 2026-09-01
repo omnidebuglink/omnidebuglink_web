@@ -17,6 +17,27 @@ export function registerDevice(registry, logBuffer) {
     if (typeof html2canvas === 'function') {
       try {
         console.log('[screenshot] using html2canvas');
+        // html2canvas 不渲染 shadow DOM(cloneNode 不拷贝 shadowRoot);
+        // 在 onclone 里把 live 文档的 shadow 内容展平进克隆文档(不动真实页面,支持嵌套)。
+        // 内联样式的 shadow 内容可完整还原;<style>/constructed stylesheet 的作用域会泄漏,属近似。
+        const flattenShadow = (clonedDoc) => {
+          const walk = (liveNode, cloneNode) => {
+            if (!liveNode || !cloneNode) return;
+            if (liveNode.shadowRoot) {
+              const sc = [...liveNode.shadowRoot.children];
+              const appended = sc.map((c) => {
+                const copy = c.cloneNode(true);
+                cloneNode.appendChild(copy);
+                return copy;
+              });
+              sc.forEach((c, i) => walk(c, appended[i]));
+            }
+            const lc = [...(liveNode.children || [])];
+            const cc = [...(cloneNode.children || [])];
+            for (let i = 0; i < lc.length; i++) walk(lc[i], cc[i]);
+          };
+          walk(document.documentElement, clonedDoc.documentElement);
+        };
         const canvas = await html2canvas(doc, {
           backgroundColor: '#ffffff',
           scale: window.devicePixelRatio,
@@ -27,6 +48,7 @@ export function registerDevice(registry, logBuffer) {
           height: ch,
           windowWidth: w,                      // 克隆布局视口不变(媒体查询/百分比布局不受截图影响)
           windowHeight: h,
+          onclone: flattenShadow,
         });
         const dataUrl = canvas.toDataURL('image/png');
         const base64 = dataUrl.split(',')[1];
