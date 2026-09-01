@@ -3,26 +3,40 @@
  */
 
 export function registerDevice(registry, logBuffer) {
-  registry.register('screenshot', async () => {
+  registry.register('screenshot', async (p) => {
+    const fullPage = p?.fullPage === true;
     const w = window.innerWidth;
     const h = window.innerHeight;
-    console.log('[screenshot] start w=' + w + ' h=' + h);
+    const doc = document.documentElement;
+    // 默认视口(所见即所得,坐标与 find_objects/tap_screen 同系);fullPage 才整个文档
+    const cw = fullPage ? Math.max(doc.scrollWidth, doc.clientWidth) : w;
+    const ch = fullPage ? Math.max(doc.scrollHeight, doc.clientHeight) : h;
+    console.log(`[screenshot] start ${cw}x${ch}${fullPage ? ' fullPage' : ' viewport'} scrollY=${window.scrollY}`);
 
     // Try html2canvas first (handles DOM rendering correctly)
     if (typeof html2canvas === 'function') {
       try {
         console.log('[screenshot] using html2canvas');
-        const canvas = await html2canvas(document.documentElement, {
+        const canvas = await html2canvas(doc, {
           backgroundColor: '#ffffff',
           scale: window.devicePixelRatio,
           logging: false,
+          x: 0,
+          y: fullPage ? 0 : window.scrollY,   // 捕获窗口在文档中的起点
+          width: cw,
+          height: ch,
+          windowWidth: w,                      // 克隆布局视口不变(媒体查询/百分比布局不受截图影响)
+          windowHeight: h,
         });
         const dataUrl = canvas.toDataURL('image/png');
         const base64 = dataUrl.split(',')[1];
         console.log('[screenshot] html2canvas ok, base64 len=' + (base64?.length ?? 0));
         return {
-          width: w,
-          height: h,
+          width: canvas.width,   // 真实物理像素(= cssWidth × devicePixelRatio)
+          height: canvas.height,
+          cssWidth: cw,
+          cssHeight: ch,
+          fullPage,
           bytes: base64.length,
           __odl_file: { mime: 'image/png', data: base64 },
         };
@@ -31,17 +45,17 @@ export function registerDevice(registry, logBuffer) {
       }
     }
 
-    // Fallback: SVG foreignObject
+    // Fallback: SVG foreignObject(降级路径,质量差,尺寸同样遵循 viewport/fullPage)
     const canvas = document.createElement('canvas');
-    canvas.width = w;
-    canvas.height = h;
+    canvas.width = cw;
+    canvas.height = ch;
     const ctx = canvas.getContext('2d');
     if (!ctx) { console.log('[screenshot] no ctx'); return { error: 'no canvas context' }; }
 
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, w, h);
+    ctx.fillRect(0, 0, cw, ch);
 
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${cw}" height="${ch}">
       <foreignObject width="100%" height="100%">
         <div xmlns="http://www.w3.org/1999/xhtml">${document.documentElement.outerHTML}</div>
       </foreignObject>
@@ -64,8 +78,9 @@ export function registerDevice(registry, logBuffer) {
     if (!success && typeof ctx.drawWindow === 'function') {
       try {
         console.log('[screenshot] trying drawWindow');
+        // drawWindow 只能画视口区域(fullPage 时也只覆盖顶部),降级路径的降级,可接受
         ctx.drawWindow(window, 0, 0, w, h, 'rgb(255,255,255)');
-        success = true;
+        success = !fullPage;
       } catch (e) {
         console.log('[screenshot] drawWindow failed:', e);
       }
@@ -74,10 +89,10 @@ export function registerDevice(registry, logBuffer) {
     if (!success) {
       console.log('[screenshot] fallback: drawing text placeholder');
       ctx.fillStyle = '#f0f0f0';
-      ctx.fillRect(0, 0, w, h);
+      ctx.fillRect(0, 0, cw, ch);
       ctx.fillStyle = '#333';
       ctx.font = '14px monospace';
-      ctx.fillText(`Screenshot (${w}x${h})`, 10, 20);
+      ctx.fillText(`Screenshot (${cw}x${ch})`, 10, 20);
     }
 
     try {
@@ -86,8 +101,11 @@ export function registerDevice(registry, logBuffer) {
       const base64 = dataUrl.split(',')[1];
       console.log('[screenshot] toDataURL ok, base64 len=' + (base64?.length ?? 0));
       return {
-        width: w,
-        height: h,
+        width: canvas.width,
+        height: canvas.height,
+        cssWidth: cw,
+        cssHeight: ch,
+        fullPage,
         bytes: base64.length,
         __odl_file: { mime: 'image/png', data: base64 },
       };
@@ -96,9 +114,15 @@ export function registerDevice(registry, logBuffer) {
       return { error: 'toDataURL failed: ' + e.message };
     }
   },
-    'Captures the current viewport as PNG via __odl_file envelope. ' +
-    'Uses SVG foreignObject; falls back to text info if unavailable.',
-    JSON.stringify({ type: 'object', properties: {} })
+    'Captures a PNG screenshot via __odl_file envelope. Default: current viewport ' +
+    '(matches find_objects/tap_screen coordinates). fullPage:true captures the whole document. ' +
+    'Returns real image dimensions.',
+    JSON.stringify({
+      type: 'object',
+      properties: {
+        fullPage: { type: 'boolean', default: false, description: 'capture the whole scrollable document' },
+      },
+    })
   );
 
   registry.register('read_logs', async (p) => {
