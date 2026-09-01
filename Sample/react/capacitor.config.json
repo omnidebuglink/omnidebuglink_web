@@ -1,0 +1,6 @@
+{
+  "appId": "dev.omnidebuglink.reactsample",
+  "appName": "ODL React Sample",
+  "webDir": "dist",
+  "android": {}
+}
