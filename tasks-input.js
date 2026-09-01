@@ -163,7 +163,7 @@ export function registerInput(registry, ensureActions) {
     const applied = el.isContentEditable ? el.textContent : el.value;
     return { inputted: true, length: applied?.length ?? 0, value: String(applied ?? '') };
   },
-    'Types text into an input/textarea or contenteditable element. Sets native value and fires input/change; returns applied value.',
+    'Types text into an input/textarea or contenteditable element. Sets native value via HTMLInputElement.prototype setter (bypasses React _valueTracker so onChange fires). Returns { inputted, length, value }.',
     JSON.stringify({
       type: 'object',
       properties: {

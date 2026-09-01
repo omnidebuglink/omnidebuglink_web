@@ -230,7 +230,7 @@ export function registerUi(registry, ensureActions) {
     el.focus?.();
     return { executed: true };
   },
-    'Clicks an element by selector or text match via MouseEvent. Requires actionsEnabled.',
+    'Clicks an element by selector or text match via dispatchEvent MouseEvent. **Cannot open system-level pickers** (e.g. <select> native dropdown, file picker) — those require real touch sequence, not synthetic events. Use a custom DOM-based picker instead. Requires actionsEnabled.',
     JSON.stringify({
       type: 'object',
       properties: {
@@ -252,7 +252,7 @@ export function registerUi(registry, ensureActions) {
     }));
     return { tapped: true, x: px, y: py, element: el?.tagName?.toLowerCase() };
   },
-    'Taps at normalized screen coordinates (0-1, origin top-left). Fires MouseEvent on target element.',
+    'Taps at normalized screen coordinates (0-1, origin top-left). Fires dispatchEvent MouseEvent (bubbles:true). **Cannot open system-level pickers** (e.g. <select> native dropdown, native file picker, <input type=file>) — Chrome triggers those on real touch sequence, not on untrusted synthetic events; use a custom DOM-based picker instead.',
     JSON.stringify({
       type: 'object',
       properties: {
