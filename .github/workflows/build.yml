@@ -1,0 +1,97 @@
+# 手动发版工作流:Actions 页面 → build-release → Run workflow
+# 流程:构建 dist → 提交 dist 到仓库 → 打 tag vX.Y.Z → 发 Release(附产物 + SRI)
+# 版本号一律来自源码(package.json ↔ omnidebuglink.js LIB_VERSION,构建时校验一致);
+# 同版本重复跑会在"检查 tag"一步报错 —— 先 bump 再跑。
+name: build-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      notes:
+        description: '附加 Release 说明(可选)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --no-fund --no-audit
+
+      - name: Build dist
+        run: npm run build
+
+      - name: Commit dist
+        run: |
+          git config user.name  "odl-release-bot"
+          git config user.email "noreply@omnidebuglink.dev"
+          git add dist
+          if git diff --cached --quiet; then
+            echo "dist 无变化,跳过提交"
+          else
+            git commit -m "build: dist v$(node -p "require('./package.json').version")"
+          fi
+
+      - name: 检查 tag 未被占用
+        run: |
+          git fetch --tags origin
+          TAG="v$(node -p "require('./package.json').version")"
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "::error::tag $TAG 已存在,先 bump package.json + LIB_VERSION 再跑"
+            exit 1
+          fi
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+
+      - name: Push commit + tag
+        run: |
+          git tag "$TAG"
+          git push origin HEAD
+          git push origin "$TAG"
+
+      - name: 生成 Release 说明
+        env:
+          NOTES: ${{ inputs.notes }}
+        run: |
+          {
+            echo "## 接入"
+            echo
+            echo '```html'
+            echo "<script src=\"https://cdn.jsdelivr.net/gh/omnidebuglink/omnidebuglink_web@$TAG/dist/omnidebuglink.min.js\"></script>"
+            echo "<script>OmniDebugLink.start('wss://api.omnidebuglink.dev/ws?token=<clientToken>')</script>"
+            echo '```'
+            echo
+            echo '```js'
+            echo "import { OmniDebugLink } from 'https://cdn.jsdelivr.net/gh/omnidebuglink/omnidebuglink_web@$TAG/dist/omnidebuglink.esm.min.js';"
+            echo '```'
+            echo
+            echo "## 产物(html2canvas 1.4.1 已打进包)"
+            echo
+            echo "| 文件 | 大小 | SRI |"
+            echo "|---|---|---|"
+            for f in dist/*.js; do
+              s=$(wc -c < "$f")
+              sri=$(openssl dgst -sha384 -binary "$f" | openssl base64 -A)
+              echo "| \`$f\` | $((s/1024)) KB | \`sha384-$sri\` |"
+            done
+            if [ -n "$NOTES" ]; then
+              echo
+              echo "## 说明"
+              echo
+              echo "$NOTES"
+            fi
+          } > release-notes.md
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$TAG" dist/*.js --title "$TAG" --latest --notes-file release-notes.md

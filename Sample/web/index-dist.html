@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OmniDebugLink — Web SDK Sample (dist 构建)</title>
+<style>
+:root{--bg:#0f1117;--surface:#1a1d27;--border:#2a2d3a;--text:#e2e4ed;--muted:#6b7280;--accent:#6366f1;--green:#22c55e;--red:#ef4444;--radius:8px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:20px}
+h1{font-size:1.4rem;margin-bottom:4px}
+h2{font-size:.95rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:24px 0 12px;border-bottom:1px solid var(--border);padding-bottom:6px}
+.status{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;font-size:.8rem;font-weight:600}
+.status.connected{background:#166534;color:#bbf7d0}
+.status.disconnected{background:#991b1b;color:#fecaca}
+.dot{width:8px;height:8px;border-radius:50%;background:currentColor}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;align-items:center}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+label{font-size:.8rem;color:var(--muted);display:block;margin-bottom:3px}
+input,select,textarea{background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:6px 10px;font-size:.85rem;width:100%}
+button{background:var(--accent);color:#fff;border:none;border-radius:4px;padding:6px 14px;font-size:.82rem;cursor:pointer}
+button:hover{opacity:.85}
+button.secondary{background:var(--border);color:var(--text)}
+button.danger{background:var(--red)}
+pre{background:#0d0f14;padding:10px;border-radius:6px;font-size:.75rem;overflow-x:auto;max-height:200px;white-space:pre-wrap;word-break:break-all;color:var(--muted)}
+</style>
+</head>
+<body>
+
+<h1>OmniDebugLink <span style="color:var(--muted);font-size:.9rem">— Web SDK Sample (dist 构建)</span></h1>
+<div style="display:flex;align-items:center;gap:12px;margin:8px 0 20px">
+  <span id="status" class="status disconnected"><span class="dot"></span>disconnected</span>
+  <span style="font-size:.75rem;color:var(--muted)" id="hint"></span>
+</div>
+
+<!-- 与 index.html 的区别:只引一个 dist/omnidebuglink.min.js(html2canvas 已打进包),全局 OmniDebugLink -->
+
+<!-- CONTROLS -->
+<div class="card">
+  <div class="row">
+    <button onclick="doConnect()">连接</button>
+    <button class="danger" onclick="doDisconnect()">断开</button>
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin:0">
+      <input type="checkbox" id="actions-enabled" checked onchange="toggleActions()"> actionsEnabled
+    </label>
+  </div>
+</div>
+
+<!-- LOG -->
+<h2>事件日志</h2>
+<div class="card">
+  <pre id="log"></pre>
+  <div class="row" style="margin-top:8px">
+    <button class="secondary" onclick="document.getElementById('log').textContent=''">清空</button>
+  </div>
+</div>
+
+<!-- STATE -->
+<h2>设备状态</h2>
+<div class="card">
+  <pre id="state">等待连接…</pre>
+</div>
+
+<!-- DEMO: FORMS -->
+<h2>表单控件</h2>
+<div class="card">
+  <div class="grid">
+    <div><label>文本</label><input id="demo-text" type="text" placeholder="输入文字"></div>
+    <div><label>密码</label><input id="demo-pw" type="password" placeholder="密码"></div>
+    <div><label>Email</label><input id="demo-email" type="email" placeholder="test@example.com"></div>
+    <div><label>数字</label><input id="demo-num" type="number" placeholder="42"></div>
+    <div><label>下拉</label>
+      <select id="demo-select">
+        <option value="">请选择</option>
+        <option value="a">选项 A</option>
+        <option value="b">选项 B</option>
+      </select>
+    </div>
+    <div><label>多行</label><textarea id="demo-ta" rows="2" placeholder="多行文本…"></textarea></div>
+  </div>
+</div>
+
+<!-- DEMO: BUTTONS -->
+<h2>按钮 & 交互控件</h2>
+<div class="card">
+  <div class="row">
+    <button id="demo-btn-a">Primary</button>
+    <button id="demo-btn-b" class="secondary">Secondary</button>
+    <button id="demo-btn-c" class="danger">Delete</button>
+    <button disabled>Disabled</button>
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin:0">
+      <input type="checkbox" id="demo-check"> Checkbox
+    </label>
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin:0">
+      <input type="radio" name="rad" value="1"> Radio 1
+    </label>
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin:0">
+      <input type="radio" name="rad" value="2"> Radio 2
+    </label>
+    <input type="range" id="demo-range" min="0" max="100" value="50" style="flex:1">
+    <span id="range-val" style="font-size:.8rem;color:var(--muted)">50</span>
+  </div>
+</div>
+
+<!-- DEMO: DYNAMIC CONTENT -->
+<h2>动态内容</h2>
+<div class="card">
+  <div class="row">
+    <button class="secondary" onclick="addItem()">+ 添加列表项</button>
+    <button class="secondary" onclick="clearItems()">清空</button>
+    <span style="font-size:.8rem;color:var(--muted)" id="item-count">0 项</span>
+  </div>
+  <ul id="demo-list" style="padding-left:20px;color:var(--muted);margin-top:10px;max-height:120px;overflow-y:auto"></ul>
+  <div style="margin-top:10px">
+    <label>查找目标（给 find_objects / wait_for 用）</label>
+    <p id="demo-find-target" style="color:var(--green);margin-top:4px">这是一段用于 find_objects 测试的目标文字</p>
+    <p id="demo-wait-target" style="color:var(--yellow);display:none">这是 wait_for 等待出现的文字</p>
+    <button class="secondary" onclick="document.getElementById('demo-wait-target').style.display='block'" style="margin-top:6px">显示等待元素</button>
+  </div>
+</div>
+
+<!-- SHADOW DOM -->
+<h2>Shadow DOM</h2>
+<div class="card">
+  <div id="shadow-host" style="border:1px dashed var(--border);border-radius:4px;padding:10px"></div>
+</div>
+
+<script src="../../dist/omnidebuglink.min.js"></script>
+<script>
+const TOKEN = 'odl-dev-7e35c4bf275d4e3e55b844117dda7dfd9e0cde43bd600513cd32226ed684ee83';
+const URL   = `wss://api.omnidebuglink.dev/ws?token=${TOKEN}`;
+const log   = document.getElementById('log');
+const state = document.getElementById('state');
+
+function logMsg(msg) {
+  log.textContent += `[${new Date().toLocaleTimeString()}] ${msg}\n`;
+  log.scrollTop = log.scrollHeight;
+}
+
+// Shadow DOM demo
+(function initShadow() {
+  const host = document.getElementById('shadow-host');
+  const shadow = host.attachShadow({ mode: 'open' });
+  shadow.innerHTML = '<button id="sb" style="background:#6366f1;color:#fff;border:none;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:.82rem">Shadow Button</button>';
+  shadow.querySelector('#sb').addEventListener('click', () => logMsg('Shadow button clicked'));
+})();
+
+// Range
+document.getElementById('demo-range').addEventListener('input', e => {
+  document.getElementById('range-val').textContent = e.target.value;
+});
+
+function updateStatus() {
+  const el = document.getElementById('status');
+  const s = OmniDebugLink.state;
+  if (s === 'connected') {
+    el.className = 'status connected';
+    el.innerHTML = '<span class="dot"></span>connected';
+    document.getElementById('hint').textContent = `token: ${TOKEN.slice(0,12)}…`;
+    state.textContent = [
+      'platform: web',
+      `libVersion: ${OmniDebugLink.LIB_VERSION ?? 'n/a'}`,
+      `actionsEnabled: ${OmniDebugLink.actionsEnabled}`,
+      `url: ${window.location.href}`,
+    ].join('\n');
+  } else {
+    el.className = 'status disconnected';
+    el.innerHTML = '<span class="dot"></span>disconnected';
+    document.getElementById('hint').textContent = '';
+  }
+}
+
+// Poll
+setInterval(updateStatus, 1000);
+
+window.doConnect = () => {
+  OmniDebugLink.actionsEnabled = document.getElementById('actions-enabled').checked;
+  OmniDebugLink.start(URL);
+  logMsg('连接请求已发送');
+};
+
+window.doDisconnect = () => {
+  OmniDebugLink.stop();
+  updateStatus();
+  logMsg('已断开');
+};
+
+window.toggleActions = () => {
+  OmniDebugLink.actionsEnabled = document.getElementById('actions-enabled').checked;
+  logMsg(`actionsEnabled = ${OmniDebugLink.actionsEnabled}`);
+};
+
+window.addItem = () => {
+  const list = document.getElementById('demo-list');
+  const li = document.createElement('li');
+  li.id = `item-${Date.now()}`;
+  li.textContent = `Item #${list.children.length + 1}`;
+  list.appendChild(li);
+  document.getElementById('item-count').textContent = `${list.children.length} 项`;
+};
+
+window.clearItems = () => {
+  document.getElementById('demo-list').innerHTML = '';
+  document.getElementById('item-count').textContent = '0 项';
+};
+</script>
+</body>
+</html>

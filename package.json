@@ -1,0 +1,16 @@
+{
+  "name": "@omnidebuglink/web",
+  "version": "0.1.0",
+  "description": "OmniDebugLink Web client SDK — 把任意网页接入 AI 远程调试",
+  "license": "MIT",
+  "main": "./dist/omnidebuglink.esm.min.js",
+  "module": "./dist/omnidebuglink.esm.min.js",
+  "files": ["dist"],
+  "repository": "https://github.com/omnidebuglink/omnidebuglink_web",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0"
+  }
+}
