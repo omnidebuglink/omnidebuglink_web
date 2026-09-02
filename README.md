@@ -76,4 +76,4 @@ Android/Flutter/iOS; Unity is bottom-left).
 
 ## License
 
-Same as the OmniDebugLink project.
+Released under the [MIT License](LICENSE).
