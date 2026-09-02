@@ -1,14 +1,16 @@
-# 手动发版工作流:Actions 页面 → build-release → Run workflow
-# 流程:构建 dist → 提交 dist 到仓库 → 打 tag vX.Y.Z → 发 Release(附产物 + SRI)
-# 版本号一律来自源码(package.json ↔ omnidebuglink.js LIB_VERSION,构建时校验一致);
-# 同版本重复跑会在"检查 tag"一步报错 —— 先 bump 再跑。
+# Manual release workflow: Actions tab -> build-release -> Run workflow
+# Pipeline: build dist -> commit dist to the repo -> tag vX.Y.Z ->
+# create Release (with artifacts + SRI hashes)
+# Version always comes from source (package.json <-> omnidebuglink.js
+# LIB_VERSION, cross-checked at build time); re-running the same version
+# fails at the tag check — bump first.
 name: build-release
 
 on:
   workflow_dispatch:
     inputs:
       notes:
-        description: '附加 Release 说明(可选)'
+        description: 'Extra release notes (optional)'
         required: false
         default: ''
 
@@ -37,17 +39,17 @@ jobs:
           git config user.email "noreply@omnidebuglink.dev"
           git add dist
           if git diff --cached --quiet; then
-            echo "dist 无变化,跳过提交"
+            echo "dist unchanged, skipping commit"
           else
             git commit -m "build: dist v$(node -p "require('./package.json').version")"
           fi
 
-      - name: 检查 tag 未被占用
+      - name: Check tag is free
         run: |
           git fetch --tags origin
           TAG="v$(node -p "require('./package.json').version")"
           if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
-            echo "::error::tag $TAG 已存在,先 bump package.json + LIB_VERSION 再跑"
+            echo "::error::tag $TAG already exists — bump package.json + LIB_VERSION first"
             exit 1
           fi
           echo "TAG=$TAG" >> "$GITHUB_ENV"
@@ -58,12 +60,12 @@ jobs:
           git push origin HEAD
           git push origin "$TAG"
 
-      - name: 生成 Release 说明
+      - name: Render release notes
         env:
           NOTES: ${{ inputs.notes }}
         run: |
           {
-            echo "## 接入"
+            echo "## Install"
             echo
             echo '```html'
             echo "<script src=\"https://cdn.jsdelivr.net/gh/omnidebuglink/omnidebuglink_web@$TAG/dist/omnidebuglink.min.js\"></script>"
@@ -74,9 +76,9 @@ jobs:
             echo "import { OmniDebugLink } from 'https://cdn.jsdelivr.net/gh/omnidebuglink/omnidebuglink_web@$TAG/dist/omnidebuglink.esm.min.js';"
             echo '```'
             echo
-            echo "## 产物(html2canvas 1.4.1 已打进包)"
+            echo "## Artifacts (html2canvas 1.4.1 bundled)"
             echo
-            echo "| 文件 | 大小 | SRI |"
+            echo "| File | Size | SRI |"
             echo "|---|---|---|"
             for f in dist/*.js; do
               s=$(wc -c < "$f")
@@ -85,7 +87,7 @@ jobs:
             done
             if [ -n "$NOTES" ]; then
               echo
-              echo "## 说明"
+              echo "## Notes"
               echo
               echo "$NOTES"
             fi
