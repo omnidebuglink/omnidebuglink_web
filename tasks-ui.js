@@ -72,6 +72,33 @@ function flattenTree(node, path = '0', results = []) {
 
 function qs(sel) { try { return document.querySelector(sel); } catch { return null; } }
 
+/**
+ * Text locator: textContent.includes() also hits every ancestor (html/body/…),
+ * and document order puts those outermost containers first — clicking one does
+ * nothing. Order candidates smallest-subtree-first so index 0 is the element
+ * that actually renders the text (real-device finding 2026-09: text "Checkbox"
+ * used to click the card div instead of the label). Zero-size elements dropped;
+ * form values count as text (input results are invisible to textContent).
+ */
+function locateByText(text, index) {
+  const needle = text.toLowerCase();
+  const candidates = [...document.querySelectorAll('*')].filter(el => {
+    const value = typeof el.value === 'string' && el.value !== '' ? el.value : null;
+    const hay = `${el.textContent ?? ''} ${value ?? ''}`.toLowerCase();
+    if (!hay.includes(needle)) return false;
+    const r = el.getBoundingClientRect?.();
+    return r && r.width > 0 && r.height > 0;
+  });
+  candidates.sort((a, b) => (a.textContent ?? '').length - (b.textContent ?? '').length);
+  return candidates[index] ?? null;
+}
+
+/** Same ordering for find_objects so its matches list is most-specific-first. */
+function sortByTextSpecificity(elements, text) {
+  if (!text) return elements;
+  return elements.slice().sort((a, b) => (a.textContent ?? '').length - (b.textContent ?? '').length);
+}
+
 export function registerUi(registry, ensureActions) {
   registry.register('ui_traverse', async (p) => {
     const root = p.rootSelector ? qs(p.rootSelector) : document.body || document.documentElement;
@@ -105,7 +132,7 @@ export function registerUi(registry, ensureActions) {
       : Array.from(root.querySelectorAll('*'));
 
     const results = [];
-    for (const el of matches) {
+    for (const el of sortByTextSpecificity(matches, text)) {
       // 文本匹配同时看 textContent 与表单控件当前 value(输入结果不是文本节点,textContent 看不见)
       const value = typeof el.value === 'string' && el.value !== '' ? el.value : null;
       if (text) {
@@ -221,9 +248,7 @@ export function registerUi(registry, ensureActions) {
     if (selector) {
       el = qs(selector);
     } else if (text) {
-      const all = [...document.querySelectorAll('*')];
-      const matches = all.filter(e => (e.textContent ?? '').includes(text));
-      el = matches[index ?? 0] ?? null;
+      el = locateByText(text, index ?? 0);
     }
     if (!el) return { executed: false, error: 'element not found' };
     // Physical delivery: resolve the element's center through elementFromPoint
