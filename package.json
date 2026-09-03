@@ -1,6 +1,6 @@
 {
   "name": "@omnidebuglink/web",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "description": "OmniDebugLink Web client SDK — 把任意网页接入 AI 远程调试",
   "license": "MIT",
   "main": "./dist/omnidebuglink.esm.min.js",

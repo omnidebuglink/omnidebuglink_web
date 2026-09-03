@@ -226,11 +226,25 @@ export function registerUi(registry, ensureActions) {
       el = matches[index ?? 0] ?? null;
     }
     if (!el) return { executed: false, error: 'element not found' };
-    el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    el.focus?.();
-    return { executed: true };
+    // Physical delivery: resolve the element's center through elementFromPoint
+    // and click whatever actually sits there — overlays (guide masks, intercept
+    // layers) receive the click exactly like a real tap. Falls back to the
+    // located element when the center cannot be hit-tested (clipped/scrolled
+    // out of view).
+    const r = el.getBoundingClientRect();
+    const cx = Math.round(r.left + r.width / 2);
+    const cy = Math.round(r.top + r.height / 2);
+    const onScreen = cx >= 0 && cy >= 0 && cx < window.innerWidth && cy < window.innerHeight;
+    const target = (onScreen ? document.elementFromPoint(cx, cy) : null) ?? el;
+    target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+    target.focus?.();
+    return {
+      executed: true,
+      via: target === el ? 'element' : 'hit-test',
+      ...(target !== el ? { clicked: target.tagName?.toLowerCase() + (target.id ? '#' + target.id : '') } : {}),
+    };
   },
-    'Clicks an element by selector or text match via dispatchEvent MouseEvent. **Cannot open system-level pickers** (e.g. <select> native dropdown, file picker) — those require real touch sequence, not synthetic events. Use a custom DOM-based picker instead. Requires actionsEnabled.',
+    'Clicks an element by selector or text match, delivered physically: the element\'s center is hit-tested via elementFromPoint and the click event fires on whatever actually sits there — overlays (guide masks, intercept layers) receive it like a real tap. **Cannot open system-level pickers** (e.g. <select> native dropdown, file picker) — those require real touch, not synthetic events. Requires actionsEnabled.',
     JSON.stringify({
       type: 'object',
       properties: {
