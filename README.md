@@ -13,15 +13,18 @@ release builds.
 CDN (IIFE, exposes a global `OmniDebugLink`):
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/omnidebuglink/omnidebuglink_web@v0.2.0/dist/omnidebuglink.min.js"></script>
+<!-- no @version = always serves the latest release -->
+<script src="https://cdn.jsdelivr.net/gh/omnidebuglink/omnidebuglink_web/dist/omnidebuglink.min.js"></script>
 <script>OmniDebugLink.start('<clientToken>')</script>
 ```
 
 ESM import:
 
 ```js
-import { OmniDebugLink } from 'https://cdn.jsdelivr.net/gh/omnidebuglink/omnidebuglink_web@v0.2.0/dist/omnidebuglink.esm.min.js';
+import { OmniDebugLink } from 'https://cdn.jsdelivr.net/gh/omnidebuglink/omnidebuglink_web/dist/omnidebuglink.esm.min.js';
 ```
+
+To lock a specific release (reproducible builds), add the tag: `…@v0.2.4/dist/…`.
 
 Source module (no bundling):
 
