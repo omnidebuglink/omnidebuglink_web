@@ -9,20 +9,18 @@
 const DEFAULT_WS_URL = 'wss://api.omnidebuglink.dev/ws';
 
 /**
- * start() accepts either a bare device token (built against the default
- * relay) or a full ws URL — v0.1.x call sites passed the complete URL, and a
- * full URL doubles as the self-hosted-relay override. Passing a URL by
- * mistake is the #1 integration error since v0.2.0 (it used to be mandatory),
- * so both forms work and the unusual one logs a hint.
+ * start() takes ONLY the bare device token — the relay URL is built in,
+ * exactly like every other OmniDebugLink client SDK. A full ws URL is
+ * rejected with a clear message instead of being silently misused (the #1
+ * integration error coming from v0.1.x, where start() took a URL).
  */
-function buildConnectUrl(tokenOrUrl) {
-  if (typeof tokenOrUrl !== 'string' || tokenOrUrl.trim() === '') {
-    throw new Error('OmniDebugLink.start(token): token is required (get it from the device console / device_detail)');
+function buildConnectUrl(token) {
+  if (typeof token !== 'string' || token.trim() === '') {
+    throw new Error('OmniDebugLink.start(token): a bare device token is required (get it from the device console / device_detail)');
   }
-  const v = tokenOrUrl.trim();
+  const v = token.trim();
   if (/^wss?:\/\//i.test(v)) {
-    console.warn('[omnidebuglink] start() got a full URL — pass the bare device token instead (the relay URL is built in)');
-    return v;
+    throw new Error('OmniDebugLink.start(token): pass the bare device token (odl-dev-…), NOT a URL — the relay URL is built in since v0.2.0');
   }
   return `${DEFAULT_WS_URL}?token=${encodeURIComponent(v)}`;
 }
@@ -50,9 +48,8 @@ export class OmniDebugLink {
   static _started = false;
 
   /**
-   * @param {string} token  device token from the console. A full ws URL
-   *                        (ws:// / wss://, v0.1.x style or a self-hosted
-   *                        relay) is also accepted and used as-is.
+   * @param {string} token  bare device token from the console; the relay URL
+   *                        is baked in (aligned with all other client SDKs)
    */
   static start(token) {
     if (OmniDebugLink._started) return;
