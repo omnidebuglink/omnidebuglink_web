@@ -3,8 +3,10 @@
  *
  * Usage:
  *   import { OmniDebugLink } from './omnidebuglink.js';
- *   OmniDebugLink.start('wss://api.omnidebuglink.dev/ws?token=<clientToken>');
+ *   OmniDebugLink.start('<clientToken>');
  */
+
+const DEFAULT_WS_URL = 'wss://api.omnidebuglink.dev/ws';
 
 import { LinkConnection } from './link-connection.js';
 import { TaskRegistry }   from './task-registry.js';
@@ -29,9 +31,10 @@ export class OmniDebugLink {
   static _started = false;
 
   /**
-   * @param {string} url  e.g. "wss://api.omnidebuglink.dev/ws?token=<clientToken>"
+   * @param {string} token  device token from the console; the relay URL is baked
+   *                        in (DEFAULT_WS_URL, overridable for self-hosted relays)
    */
-  static start(url) {
+  static start(token) {
     if (OmniDebugLink._started) return;
     OmniDebugLink._started = true;
 
@@ -73,7 +76,12 @@ export class OmniDebugLink {
       console.log(`[omnidebuglink] ${connected ? 'connected' : 'disconnected'}`);
     };
 
-    const conn = new LinkConnection(url, buildHello, onTask, onState);
+    const conn = new LinkConnection(
+      `${DEFAULT_WS_URL}?token=${encodeURIComponent(token)}`,
+      buildHello,
+      onTask,
+      onState,
+    );
     OmniDebugLink._conn = conn;
     conn.onLog = (msg) => console.log(`[omnidebuglink] ${msg}`);
     conn.start();

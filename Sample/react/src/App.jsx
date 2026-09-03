@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { OmniDebugLink } from '@omnidebuglink/web';
 
-const WS_BASE = 'wss://api.omnidebuglink.dev/ws?token=';
 // web-react 设备的独立 token(与网页 sample 分席,避免 4000 互踢)
 const DEFAULT_TOKEN = 'odl-dev-7ed53c180bb20311dd641c26e447297e10c998fdfcefe8a90cd33efe37cdefef';
 
@@ -54,7 +53,7 @@ export default function App() {
 
   const connect = () => {
     OmniDebugLink.actionsEnabled = actions;
-    OmniDebugLink.start(WS_BASE + token.trim());
+    OmniDebugLink.start(token.trim());
     pushLog('连接请求已发送');
   };
   const disconnect = () => {

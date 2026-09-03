@@ -13,14 +13,14 @@ release builds.
 CDN (IIFE, exposes a global `OmniDebugLink`):
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/omnidebuglink/omnidebuglink_web@v0.1.5/dist/omnidebuglink.min.js"></script>
-<script>OmniDebugLink.start('wss://api.omnidebuglink.dev/ws?token=<clientToken>')</script>
+<script src="https://cdn.jsdelivr.net/gh/omnidebuglink/omnidebuglink_web@v0.2.0/dist/omnidebuglink.min.js"></script>
+<script>OmniDebugLink.start('<clientToken>')</script>
 ```
 
 ESM import:
 
 ```js
-import { OmniDebugLink } from 'https://cdn.jsdelivr.net/gh/omnidebuglink/omnidebuglink_web@v0.1.5/dist/omnidebuglink.esm.min.js';
+import { OmniDebugLink } from 'https://cdn.jsdelivr.net/gh/omnidebuglink/omnidebuglink_web@v0.2.0/dist/omnidebuglink.esm.min.js';
 ```
 
 Source module (no bundling):
@@ -28,11 +28,11 @@ Source module (no bundling):
 ```html
 <script type="module">
   import { OmniDebugLink } from './omnidebuglink.js';
-  OmniDebugLink.start('wss://api.omnidebuglink.dev/ws?token=<clientToken>');
+  OmniDebugLink.start('<clientToken>');
 </script>
 ```
 
-API: `OmniDebugLink.start(url)` / `stop()` / `actionsEnabled` (read-only
+API: `OmniDebugLink.start(token)` — the relay URL is baked in / `stop()` / `actionsEnabled` (read-only
 observation mode when false, announced with hello) /
 `tasks.register(type, handler, description, payloadSchema)`.
 

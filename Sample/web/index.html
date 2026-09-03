@@ -129,7 +129,6 @@ pre{background:#0d0f14;padding:10px;border-radius:6px;font-size:.75rem;overflow-
 <script>
 
 const TOKEN = 'odl-dev-7e35c4bf275d4e3e55b844117dda7dfd9e0cde43bd600513cd32226ed684ee83';
-const URL   = `wss://api.omnidebuglink.dev/ws?token=${TOKEN}`;
 const log   = document.getElementById('log');
 const state = document.getElementById('state');
 
@@ -176,7 +175,7 @@ setInterval(updateStatus, 1000);
 
 window.doConnect = () => {
   OmniDebugLink.actionsEnabled = document.getElementById('actions-enabled').checked;
-  OmniDebugLink.start(URL);
+  OmniDebugLink.start(TOKEN);
   logMsg('连接请求已发送');
 };
 
