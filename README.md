@@ -45,17 +45,32 @@ permanently.
 
 ## Built-in tasks (17)
 
-Read: `ui_traverse` (DOM + shadow DOM snapshot, flat list, 3000-node cap) /
-`find_objects` (tag/id/className/data-testid/text substring, center 0-1) /
-`view_component` / `wait_for` / `screenshot` (viewport by default —
-coordinates stay in the same system as find_objects/tap_screen;
-`fullPage:true` captures the whole document) / `read_logs` (console ring
-buffer with level/contains/limit/sinceMs filters) / `get_state` / `get_perf` /
-`prefs` (localStorage)
-Write: `ui_click` / `tap_screen` / `swipe` (PointerEvent + native-behavior
-compensation: scrolls the nearest scrollable ancestor, resolves range
-sliders by x) / `long_press` / `input_text` (prototype-setter write, React
-controlled components supported) / `send_key`
+Read tasks:
+
+| Task | What it does |
+|---|---|
+| `ui_traverse` | DOM + shadow DOM snapshot as a flat list (3000-node cap) with depth/path — token-efficient structure inspection |
+| `find_objects` | Search by tag / id / className / data-testid / **text substring**; matches ordered most-specific-first (the element that renders the text, not its ancestors) and include center 0-1 coords |
+| `view_component` | One element in depth: rect, computed style, attributes, current form value (property, not attribute) |
+| `wait_for` | Poll every 200 ms until a selector appears or text is found; timeout returns `found: false`, not an error |
+| `screenshot` | Viewport capture (same coordinate system as find_objects/tap_screen); `fullPage: true` captures the whole document. html2canvas is bundled; SVG foreignObject fallback |
+| `read_logs` | Console ring buffer (500 entries, no history before start): level / contains / limit / sinceMs filters |
+| `get_state` | url / title / viewport / navigator / performance navigation timing |
+| `get_perf` | Navigation timing, named marks, resource counts |
+| `prefs` | Read localStorage (get / list) |
+
+Write tasks (all gated by `actionsEnabled`):
+
+| Task | What it does |
+|---|---|
+| `ui_click` | Delivered physically since v0.2.1: the element's center is hit-tested via `elementFromPoint` and the click fires on whatever actually sits there — overlays (guide masks) receive it like a real tap. Locates by selector or by text; `via`/`clicked` report what happened |
+| `tap_screen` | Tap at normalized 0-1 coordinates (top-left origin) via `elementFromPoint` |
+| `swipe` | PointerEvent gesture with native-behavior compensation: scrolls the nearest scrollable ancestor, resolves range sliders by x position |
+| `long_press` | Pointer down, hold (holdMs), up |
+| `input_text` | Writes through the prototype setter (browsers' internal value updates; React controlled components supported via `_valueTracker` reset) |
+| `send_key` | Soft-dispatched KeyboardEvent: enter / tab / escape / backspace / arrows; scroll keys compensated when focus is outside forms |
+| `prefs` | Write / delete localStorage |
+
 Basics: `echo` / `ping` / `get_stats`
 
 Coordinates: normalized 0-1, **top-left origin** (same as
